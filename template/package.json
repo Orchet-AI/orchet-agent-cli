@@ -2,6 +2,7 @@
   "name": "orchet-{{AGENT_ID}}-agent",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Orchet specialist agent: {{DISPLAY_NAME}}. {{ONE_LINER}}",
   "scripts": {
     "dev": "next dev -p 3007",
@@ -12,7 +13,7 @@
   },
   "dependencies": {
     "@orchet/agent-sdk": "^{{SDK_VERSION}}",
-    "next": "14.2.5",
+    "next": "16.2.6",
     "react": "^18",
     "react-dom": "^18",
     "zod": "^3.23.8"
@@ -22,5 +23,8 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "typescript": "^5.4.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.15"
   }
 }
