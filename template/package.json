@@ -1,0 +1,26 @@
+{
+  "name": "orchet-{{AGENT_ID}}-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orchet specialist agent: {{DISPLAY_NAME}}. {{ONE_LINER}}",
+  "scripts": {
+    "dev": "next dev -p 3007",
+    "build": "next build",
+    "start": "next start -p 3007",
+    "typecheck": "tsc --noEmit",
+    "validate-manifest": "node scripts/validate-manifest.mjs"
+  },
+  "dependencies": {
+    "@orchet/agent-sdk": "^{{SDK_VERSION}}",
+    "next": "14.2.5",
+    "react": "^18",
+    "react-dom": "^18",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5.4.5"
+  }
+}

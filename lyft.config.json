@@ -1,0 +1,77 @@
+{
+  "agentId": "lyft",
+  "displayName": "Lyft",
+  "oneLiner": "Get ride estimates, request rides, and review ride history on Lyft.",
+  "category": "Travel",
+  "authModel": "oauth2",
+  "authorizeUrl": "https://api.lyft.com/oauth/authorize",
+  "tokenUrl": "https://api.lyft.com/oauth/token",
+  "revocationUrl": "",
+  "scopes": ["public", "profile", "rides.read", "rides.request"],
+  "hasMoneyTools": true,
+  "vendorApiBase": "https://api.lyft.com/v1",
+  "contactEmail": "prasanth.kalas@lumo.rentals",
+  "tools": [
+    {
+      "name": "lyft_get_estimates",
+      "summary": "Get Lyft cost + ETA estimates for an origin to destination pair.",
+      "method": "POST",
+      "path": "/lyft_get_estimates",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "required": ["origin", "destination"],
+        "properties": {
+          "origin": { "type": "object", "properties": { "latitude": { "type": "number" }, "longitude": { "type": "number" } } },
+          "destination": { "type": "object", "properties": { "latitude": { "type": "number" }, "longitude": { "type": "number" } } }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "offers": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const origin = (body as any).origin;\n    const destination = (body as any).destination;\n    const [costData, etaData] = await Promise.all([\n      vendorFetch<{ cost_estimates: any[] }>({\n        bearer,\n        method: \"GET\",\n        path: \"/cost\",\n        query: {\n          start_lat: origin.latitude,\n          start_lng: origin.longitude,\n          end_lat: destination.latitude,\n          end_lng: destination.longitude,\n        },\n      }),\n      vendorFetch<{ eta_estimates: any[] }>({\n        bearer,\n        method: \"GET\",\n        path: \"/eta\",\n        query: { lat: origin.latitude, lng: origin.longitude },\n      }),\n    ]);\n    const etaByRideType: Record<string, number> = {};\n    for (const e of etaData.eta_estimates ?? []) etaByRideType[e.ride_type] = e.eta_seconds;\n    const offers = (costData.cost_estimates ?? []).map((c: any) => ({\n      product_id: c.ride_type,\n      product_name: c.display_name,\n      low_estimate: c.estimated_cost_cents_min / 100,\n      high_estimate: c.estimated_cost_cents_max / 100,\n      currency_code: c.currency,\n      pickup_estimate_minutes: etaByRideType[c.ride_type] ? Math.ceil(etaByRideType[c.ride_type] / 60) : null,\n      duration_seconds: c.estimated_duration_seconds,\n      distance_meters: c.estimated_distance_miles ? Math.round(c.estimated_distance_miles * 1609.34) : null,\n      surge_multiplier: c.primetime_percentage ? 1 + Number(c.primetime_percentage.replace(\"%\", \"\")) / 100 : 1.0,\n    }));\n    return NextResponse.json({ offers });"
+    },
+    {
+      "name": "lyft_request_ride",
+      "summary": "Request a Lyft ride. Money tool — two-step confirmation via simulate flag.",
+      "method": "POST",
+      "path": "/lyft_request_ride",
+      "readonly": false,
+      "requestSchema": {
+        "type": "object",
+        "required": ["ride_type", "origin", "destination", "simulate"],
+        "properties": {
+          "ride_type": { "type": "string" },
+          "origin": { "type": "object" },
+          "destination": { "type": "object" },
+          "simulate": { "type": "boolean" }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "ride_id": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      },
+      "implBody": "if ((body as any).simulate) {\n      return NextResponse.json({\n        ride_id: `simulate:${(body as any).ride_type}`,\n        status: \"processing\",\n        ride_type: (body as any).ride_type,\n        simulated: true,\n      });\n    }\n    const result = await vendorFetch<{ ride_id: string; status: string; ride_type?: string }>({\n      bearer,\n      method: \"POST\",\n      path: \"/rides\",\n      body: {\n        ride_type: (body as any).ride_type,\n        origin: { lat: (body as any).origin.latitude, lng: (body as any).origin.longitude },\n        destination: { lat: (body as any).destination.latitude, lng: (body as any).destination.longitude },\n      },\n    });\n    return NextResponse.json({ ride_id: result.ride_id, status: result.status, ride_type: result.ride_type });"
+    },
+    {
+      "name": "lyft_get_ride_history",
+      "summary": "List the user's recent Lyft rides.",
+      "method": "POST",
+      "path": "/lyft_get_ride_history",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": { "limit": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 } }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "rides": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const result = await vendorFetch<{ ride_history: any[] }>({\n      bearer,\n      method: \"GET\",\n      path: \"/rides\",\n      query: { limit: Math.min((body as any).limit ?? 10, 50) },\n    });\n    const rides = (result.ride_history ?? []).map((r: any) => ({\n      ride_id: r.ride_id,\n      status: r.status,\n      ride_type: r.ride_type,\n      requested_at: r.requested_at,\n      origin: r.origin?.address ?? null,\n      destination: r.destination?.address ?? null,\n      distance_meters: r.distance_miles ? Math.round(r.distance_miles * 1609.34) : null,\n      duration_seconds: r.duration_seconds ?? null,\n      price: r.price ? { total: r.price.amount / 100, currency_code: r.price.currency } : null,\n    }));\n    return NextResponse.json({ rides, count: rides.length });"
+    }
+  ]
+}

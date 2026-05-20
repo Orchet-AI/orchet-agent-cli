@@ -1,0 +1,41 @@
+{
+  "name": "@orchet/agent-cli",
+  "version": "0.1.0",
+  "description": "Scaffold Orchet specialist agents from a template, or generate from a vendor's OpenAPI spec with Claude assistance.",
+  "type": "module",
+  "bin": {
+    "create-orchet-agent": "./bin/create-orchet-agent.mjs",
+    "orchet-agent": "./bin/create-orchet-agent.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "template/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test-smoke.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "prompts": "^2.4.2"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Orchet-AI/orchet-agent-cli.git"
+  },
+  "keywords": [
+    "orchet",
+    "agent",
+    "marketplace",
+    "scaffolder",
+    "generator"
+  ],
+  "license": "Apache-2.0"
+}

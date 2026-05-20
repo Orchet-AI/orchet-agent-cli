@@ -1,0 +1,79 @@
+{
+  "agentId": "stripe",
+  "displayName": "Stripe",
+  "oneLiner": "See recent payments, generate Stripe checkout links, and send invoices through your connected Stripe account.",
+  "category": "Payments",
+  "authModel": "oauth2",
+  "authorizeUrl": "https://connect.stripe.com/oauth/authorize",
+  "tokenUrl": "https://connect.stripe.com/oauth/token",
+  "revocationUrl": "https://connect.stripe.com/oauth/deauthorize",
+  "scopes": ["read_write"],
+  "hasMoneyTools": true,
+  "vendorApiBase": "https://api.stripe.com/v1",
+  "contactEmail": "prasanth.kalas@lumo.rentals",
+  "tools": [
+    {
+      "name": "stripe_get_recent_payments",
+      "summary": "List the user's most-recent successful charges on Stripe.",
+      "method": "POST",
+      "path": "/stripe_get_recent_payments",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "payments": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const limit = Math.min((body as any).limit ?? 10, 100);\n    const data = await vendorFetch<{ data: any[] }>({\n      bearer,\n      method: \"GET\",\n      path: \"/charges\",\n      query: { limit, \"expand[]\": \"data.customer\" },\n    });\n    const payments = (data.data ?? []).map((c: any) => ({\n      id: c.id,\n      amount: c.amount / 100,\n      currency: c.currency?.toUpperCase() ?? null,\n      status: c.status,\n      description: c.description ?? null,\n      created: c.created ? new Date(c.created * 1000).toISOString() : null,\n      customer_email: c.billing_details?.email ?? null,\n      receipt_url: c.receipt_url ?? null,\n      paid: c.paid === true,\n      refunded: c.refunded === true,\n    }));\n    return NextResponse.json({ payments, count: payments.length });"
+    },
+    {
+      "name": "stripe_create_payment_link",
+      "summary": "Generate a hosted Stripe checkout link the user can share with a customer.",
+      "method": "POST",
+      "path": "/stripe_create_payment_link",
+      "readonly": false,
+      "requestSchema": {
+        "type": "object",
+        "required": ["product_name", "amount", "currency"],
+        "properties": {
+          "product_name": { "type": "string" },
+          "amount": { "type": "number", "description": "Major-currency amount (e.g., 19.99 for $19.99). Converted to minor units before sending to Stripe." },
+          "currency": { "type": "string", "description": "ISO 4217 currency code (e.g., USD, INR, EUR)." },
+          "description": { "type": "string" }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "url": { "type": "string" }, "id": { "type": "string" } }
+      },
+      "implBody": "const params = new URLSearchParams();\n    params.set(\"line_items[0][price_data][currency]\", String((body as any).currency).toLowerCase());\n    params.set(\"line_items[0][price_data][product_data][name]\", String((body as any).product_name));\n    params.set(\"line_items[0][price_data][unit_amount]\", String(Math.round(Number((body as any).amount) * 100)));\n    params.set(\"line_items[0][quantity]\", \"1\");\n    if ((body as any).description) {\n      params.set(\"line_items[0][price_data][product_data][description]\", String((body as any).description));\n    }\n    const res = await fetch(\"https://api.stripe.com/v1/payment_links\", {\n      method: \"POST\",\n      headers: {\n        authorization: `Bearer ${bearer}`,\n        \"content-type\": \"application/x-www-form-urlencoded\",\n      },\n      body: params.toString(),\n    });\n    const text = await res.text();\n    let parsed: any = null;\n    try { parsed = JSON.parse(text); } catch {}\n    if (!res.ok) throw new VendorApiError(res.status, parsed, `Stripe POST /payment_links → ${res.status}: ${text.slice(0, 240)}`);\n    return NextResponse.json({ url: parsed.url, id: parsed.id });"
+    },
+    {
+      "name": "stripe_send_invoice",
+      "summary": "MONEY TOOL — create and finalize an invoice that will charge the listed customer. Two-step confirmation via simulate flag.",
+      "method": "POST",
+      "path": "/stripe_send_invoice",
+      "readonly": false,
+      "requestSchema": {
+        "type": "object",
+        "required": ["customer_email", "amount", "currency", "description", "simulate"],
+        "properties": {
+          "customer_email": { "type": "string" },
+          "amount": { "type": "number", "description": "Major-currency amount." },
+          "currency": { "type": "string" },
+          "description": { "type": "string" },
+          "simulate": { "type": "boolean" }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "invoice_id": { "type": "string" }, "status": { "type": "string" } }
+      },
+      "implBody": "if ((body as any).simulate) {\n      return NextResponse.json({\n        invoice_id: `simulate:invoice`,\n        status: \"draft\",\n        amount: (body as any).amount,\n        currency: (body as any).currency,\n        customer_email: (body as any).customer_email,\n        simulated: true,\n      });\n    }\n    // Find-or-create the customer by email, then create + finalize the invoice.\n    const findCust = await fetch(`https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:'${(body as any).customer_email}'`)}`, {\n      method: \"GET\",\n      headers: { authorization: `Bearer ${bearer}`, accept: \"application/json\" },\n    });\n    const found = await findCust.json() as { data?: any[] };\n    let customerId: string;\n    if (found.data && found.data.length > 0) {\n      customerId = found.data[0].id;\n    } else {\n      const params = new URLSearchParams({ email: String((body as any).customer_email) });\n      const newCust = await fetch(\"https://api.stripe.com/v1/customers\", {\n        method: \"POST\",\n        headers: { authorization: `Bearer ${bearer}`, \"content-type\": \"application/x-www-form-urlencoded\" },\n        body: params.toString(),\n      });\n      const c = await newCust.json() as { id: string };\n      customerId = c.id;\n    }\n    // Create invoice item, then create the invoice, then finalize+send.\n    const itemBody = new URLSearchParams({\n      customer: customerId,\n      amount: String(Math.round(Number((body as any).amount) * 100)),\n      currency: String((body as any).currency).toLowerCase(),\n      description: String((body as any).description),\n    });\n    await fetch(\"https://api.stripe.com/v1/invoiceitems\", {\n      method: \"POST\",\n      headers: { authorization: `Bearer ${bearer}`, \"content-type\": \"application/x-www-form-urlencoded\" },\n      body: itemBody.toString(),\n    });\n    const invBody = new URLSearchParams({\n      customer: customerId,\n      collection_method: \"send_invoice\",\n      days_until_due: \"7\",\n    });\n    const invRes = await fetch(\"https://api.stripe.com/v1/invoices\", {\n      method: \"POST\",\n      headers: { authorization: `Bearer ${bearer}`, \"content-type\": \"application/x-www-form-urlencoded\" },\n      body: invBody.toString(),\n    });\n    const inv = await invRes.json() as { id: string; status: string };\n    const sendRes = await fetch(`https://api.stripe.com/v1/invoices/${inv.id}/send`, {\n      method: \"POST\",\n      headers: { authorization: `Bearer ${bearer}` },\n    });\n    const sent = await sendRes.json() as { id: string; status: string; hosted_invoice_url?: string };\n    return NextResponse.json({\n      invoice_id: sent.id,\n      status: sent.status,\n      hosted_invoice_url: sent.hosted_invoice_url ?? null,\n    });"
+    }
+  ]
+}

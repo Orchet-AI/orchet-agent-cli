@@ -1,0 +1,91 @@
+# @orchet/agent-cli
+
+Scaffold Orchet specialist agents in seconds.
+
+```bash
+# Interactive — 6 questions, full repo
+npx create-orchet-agent lyft
+
+# Claude-assisted from vendor's OpenAPI spec
+ANTHROPIC_API_KEY=… npx create-orchet-agent lyft \
+  --from-openapi https://api.lyft.com/v1/openapi.yaml
+
+# Claude-assisted from a docs page (HTML)
+ANTHROPIC_API_KEY=… npx create-orchet-agent doordash \
+  --from-docs https://developer.doordash.com/en-US/docs/drive
+
+# Non-interactive (CI / design-partner onboarding)
+npx create-orchet-agent stripe --config ./stripe.config.json
+```
+
+## What you get
+
+A complete Next.js repo ready to deploy on Vercel:
+
+```
+<agent>/
+  app/
+    .well-known/agent.json/route.ts   # Orchet manifest
+    openapi.json/route.ts             # OpenAPI 3.1 spec
+    health/route.ts                   # liveness
+    tools/<name>/route.ts             # one per tool
+    page.tsx                          # public landing page
+    layout.tsx
+  lib/
+    manifest.ts                       # defineManifest() call
+    openapi.ts                        # OpenAPI doc
+    vendor-client.ts                  # thin HTTP wrapper
+    auth.ts                           # bearer extraction
+  scripts/validate-manifest.mjs       # local pre-flight
+  package.json, tsconfig.json, next.config.mjs, vercel.json
+  .env.example, .gitignore, .npmrc, README.md
+```
+
+## Three modes, one config shape
+
+All three modes (interactive, --from-openapi, --from-docs) converge on the same JSON config shape:
+
+```jsonc
+{
+  "agentId": "lyft",                          // lowercase, [a-z][a-z0-9-]{2,31}
+  "displayName": "Lyft",
+  "oneLiner": "Get rides via Lyft.",
+  "category": "Travel",
+  "authModel": "oauth2",                       // or "api_key" or "none"
+  "authorizeUrl": "https://api.lyft.com/oauth/authorize",
+  "tokenUrl":     "https://api.lyft.com/oauth/token",
+  "revocationUrl": "",
+  "scopes": ["public", "profile", "rides.read", "rides.request"],
+  "hasMoneyTools": true,
+  "vendorApiBase": "https://api.lyft.com/v1",
+  "contactEmail": "developer@example.com",
+  "tools": [
+    {
+      "name": "lyft_get_estimates",
+      "summary": "Ride cost + ETA estimates.",
+      "method": "POST",
+      "path": "/lyft_get_estimates",
+      "readonly": true,
+      "requestSchema": { /* JSON Schema */ },
+      "responseSchema": { /* JSON Schema */ },
+      "implBody": "/* generated TS code body */"
+    }
+  ]
+}
+```
+
+`--config <path>` reads this JSON directly. `--from-openapi` and `--from-docs` ask Claude to produce it. Interactive prompts the user for the top-level fields and leaves you with a stub tool to edit.
+
+## Hard credential boundary
+
+The generated manifest carries **env-var NAMES**, never values. `client_id_env: "ORCHET_<AGENT>_CLIENT_ID"`. The actual OAuth secrets live on Vercel as production env vars. Per ADR-015, the orchet-marketplace service never accepts secrets in submissions.
+
+## Why this exists
+
+Manually writing one agent like Uber takes 2 hours and 1,200 LoC. At 100 agents that's 200 hours plus 100 vendor OAuth registrations plus QA — multiple engineer-weeks for code that's 80% boilerplate. The CLI takes that 80% to zero. Build the next agent in 15 minutes (interactive) or 5 minutes (--from-openapi with Claude).
+
+The CLI is the thing that lets the marketplace scale — internally for the top 20 official integrations, externally for the long-tail developer ecosystem.
+
+## License
+
+Apache-2.0.

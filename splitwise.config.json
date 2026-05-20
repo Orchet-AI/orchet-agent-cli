@@ -1,0 +1,140 @@
+{
+  "agentId": "splitwise",
+  "displayName": "Splitwise",
+  "oneLiner": "See your Splitwise groups, list expenses, and add new shared expenses across friends or groups.",
+  "category": "Productivity",
+  "authModel": "oauth2",
+  "authorizeUrl": "https://secure.splitwise.com/oauth/authorize",
+  "tokenUrl": "https://secure.splitwise.com/oauth/token",
+  "revocationUrl": "",
+  "scopes": [],
+  "hasMoneyTools": false,
+  "vendorApiBase": "https://secure.splitwise.com/api/v3.0",
+  "contactEmail": "prasanth.kalas@lumo.rentals",
+  "tools": [
+    {
+      "name": "splitwise_get_current_user",
+      "summary": "Read the authenticated Splitwise user's profile (id, name, default currency, registration status).",
+      "method": "POST",
+      "path": "/splitwise_get_current_user",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "user": { "type": "object" } }
+      },
+      "implBody": "const data = await vendorFetch<{ user: any }>({\n      bearer,\n      method: \"GET\",\n      path: \"/get_current_user\",\n    });\n    const u = data.user ?? {};\n    return NextResponse.json({\n      user: {\n        id: u.id,\n        first_name: u.first_name ?? null,\n        last_name: u.last_name ?? null,\n        email: u.email ?? null,\n        registration_status: u.registration_status ?? null,\n        default_currency: u.default_currency ?? null,\n        country_code: u.country_code ?? null,\n        picture_url: u.picture?.medium ?? u.picture?.small ?? null,\n      },\n    });"
+    },
+    {
+      "name": "splitwise_get_groups",
+      "summary": "List the user's Splitwise groups (home, trips, couple, etc.) — needed before creating a group expense.",
+      "method": "POST",
+      "path": "/splitwise_get_groups",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "groups": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const data = await vendorFetch<{ groups: any[] }>({\n      bearer,\n      method: \"GET\",\n      path: \"/get_groups\",\n    });\n    const groups = (data.groups ?? []).map((g: any) => ({\n      id: g.id,\n      name: g.name,\n      group_type: g.group_type ?? null,\n      updated_at: g.updated_at ?? null,\n      simplify_by_default: g.simplify_by_default === true,\n      member_count: Array.isArray(g.members) ? g.members.length : null,\n      members: Array.isArray(g.members)\n        ? g.members.map((m: any) => ({\n            id: m.id,\n            first_name: m.first_name ?? null,\n            last_name: m.last_name ?? null,\n            balance: Array.isArray(m.balance) ? m.balance : [],\n          }))\n        : [],\n    }));\n    return NextResponse.json({ groups, count: groups.length });"
+    },
+    {
+      "name": "splitwise_get_friends",
+      "summary": "List the user's Splitwise friends along with current balance per friend.",
+      "method": "POST",
+      "path": "/splitwise_get_friends",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "friends": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const data = await vendorFetch<{ friends: any[] }>({\n      bearer,\n      method: \"GET\",\n      path: \"/get_friends\",\n    });\n    const friends = (data.friends ?? []).map((f: any) => ({\n      id: f.id,\n      first_name: f.first_name ?? null,\n      last_name: f.last_name ?? null,\n      email: f.email ?? null,\n      registration_status: f.registration_status ?? null,\n      balance: Array.isArray(f.balance) ? f.balance : [],\n      groups: Array.isArray(f.groups)\n        ? f.groups.map((g: any) => ({ group_id: g.group_id, balance: g.balance }))\n        : [],\n    }));\n    return NextResponse.json({ friends, count: friends.length });"
+    },
+    {
+      "name": "splitwise_list_expenses",
+      "summary": "List the user's recent Splitwise expenses, optionally filtered by group, friend, or date range.",
+      "method": "POST",
+      "path": "/splitwise_list_expenses",
+      "readonly": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {
+          "group_id": { "type": "integer", "description": "Only return expenses in this group." },
+          "friend_id": { "type": "integer", "description": "Only return expenses between you and this friend. Ignored if group_id is set." },
+          "dated_after": { "type": "string", "format": "date-time" },
+          "dated_before": { "type": "string", "format": "date-time" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "offset": { "type": "integer", "minimum": 0, "default": 0 }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": { "expenses": { "type": "array", "items": { "type": "object" } } }
+      },
+      "implBody": "const b = body as any;\n    const query: Record<string, string | number | undefined> = {\n      limit: Math.min(b.limit ?? 20, 100),\n      offset: b.offset ?? 0,\n    };\n    if (b.group_id !== undefined) query.group_id = b.group_id;\n    if (b.friend_id !== undefined && b.group_id === undefined) query.friend_id = b.friend_id;\n    if (b.dated_after) query.dated_after = b.dated_after;\n    if (b.dated_before) query.dated_before = b.dated_before;\n    const data = await vendorFetch<{ expenses: any[] }>({\n      bearer,\n      method: \"GET\",\n      path: \"/get_expenses\",\n      query,\n    });\n    const expenses = (data.expenses ?? []).map((e: any) => ({\n      id: e.id,\n      group_id: e.group_id ?? null,\n      description: e.description ?? null,\n      cost: e.cost ?? null,\n      currency_code: e.currency_code ?? null,\n      date: e.date ?? null,\n      created_at: e.created_at ?? null,\n      payment: e.payment === true,\n      deleted_at: e.deleted_at ?? null,\n      created_by: e.created_by ? { id: e.created_by.id, first_name: e.created_by.first_name } : null,\n      users: Array.isArray(e.users)\n        ? e.users.map((u: any) => ({\n            user_id: u.user_id ?? u.user?.id ?? null,\n            first_name: u.user?.first_name ?? null,\n            paid_share: u.paid_share,\n            owed_share: u.owed_share,\n            net_balance: u.net_balance,\n          }))\n        : [],\n    }));\n    return NextResponse.json({ expenses, count: expenses.length });"
+    },
+    {
+      "name": "splitwise_create_expense",
+      "summary": "Create a new Splitwise expense split equally across a group. Two-step confirm via simulate flag.",
+      "method": "POST",
+      "path": "/splitwise_create_expense",
+      "readonly": false,
+      "requestSchema": {
+        "type": "object",
+        "required": ["group_id", "cost", "description", "simulate"],
+        "properties": {
+          "group_id": { "type": "integer", "description": "Splitwise group ID. Use splitwise_get_groups to find it. Use 0 for a non-group expense (advanced)." },
+          "cost": { "type": "string", "description": "Total cost as a decimal string (e.g., \"45.00\"). The authenticated user is assumed to be the payer." },
+          "currency_code": { "type": "string", "description": "ISO 4217 currency code, e.g., USD, EUR. Defaults to your Splitwise default currency." },
+          "description": { "type": "string", "description": "Short description of the expense (e.g., \"Dinner at Taco Bell\")." },
+          "date": { "type": "string", "format": "date-time", "description": "Optional ISO 8601 timestamp; defaults to now." },
+          "category_id": { "type": "integer", "description": "Optional Splitwise category ID." },
+          "details": { "type": "string", "description": "Optional free-text notes attached to the expense." },
+          "simulate": { "type": "boolean", "description": "true to preview only; false to actually create the expense." }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "expense_id": { "type": "integer" },
+          "status": { "type": "string" },
+          "simulated": { "type": "boolean" }
+        }
+      },
+      "implBody": "const b = body as any;\n    if (b.simulate) {\n      return NextResponse.json({\n        expense_id: null,\n        status: \"preview\",\n        group_id: b.group_id,\n        cost: b.cost,\n        currency_code: b.currency_code ?? null,\n        description: b.description,\n        simulated: true,\n        note: \"Will be split equally among everyone in the group. You will be recorded as the payer.\",\n      });\n    }\n    const payload: Record<string, unknown> = {\n      cost: String(b.cost),\n      description: String(b.description),\n      group_id: b.group_id,\n      split_equally: true,\n    };\n    if (b.currency_code) payload.currency_code = String(b.currency_code).toUpperCase();\n    if (b.date) payload.date = String(b.date);\n    if (b.category_id !== undefined) payload.category_id = b.category_id;\n    if (b.details) payload.details = String(b.details);\n    const result = await vendorFetch<{ expenses: any[]; errors?: any }>({\n      bearer,\n      method: \"POST\",\n      path: \"/create_expense\",\n      body: payload,\n    });\n    const errs = result.errors;\n    const hasErrors = errs && ((Array.isArray(errs.base) && errs.base.length > 0) || Object.keys(errs).some((k) => Array.isArray((errs as any)[k]) && (errs as any)[k].length > 0));\n    if (hasErrors) {\n      throw new VendorApiError(422, errs, `Splitwise create_expense returned errors: ${JSON.stringify(errs).slice(0, 240)}`);\n    }\n    const created = (result.expenses ?? [])[0] ?? {};\n    return NextResponse.json({\n      expense_id: created.id ?? null,\n      status: created.id ? \"created\" : \"unknown\",\n      description: created.description ?? b.description,\n      cost: created.cost ?? b.cost,\n      currency_code: created.currency_code ?? null,\n      group_id: created.group_id ?? b.group_id,\n      date: created.date ?? null,\n    });"
+    },
+    {
+      "name": "splitwise_delete_expense",
+      "summary": "Delete an existing Splitwise expense. Two-step confirm via simulate flag. Splitwise allows undelete from the app.",
+      "method": "POST",
+      "path": "/splitwise_delete_expense",
+      "readonly": false,
+      "requestSchema": {
+        "type": "object",
+        "required": ["expense_id", "simulate"],
+        "properties": {
+          "expense_id": { "type": "integer", "description": "ID of the expense to delete." },
+          "simulate": { "type": "boolean" }
+        }
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "simulated": { "type": "boolean" }
+        }
+      },
+      "implBody": "const b = body as any;\n    if (b.simulate) {\n      return NextResponse.json({\n        success: true,\n        expense_id: b.expense_id,\n        simulated: true,\n        note: \"Will mark this expense as deleted. Splitwise lets you undelete from the app within ~30 days.\",\n      });\n    }\n    const result = await vendorFetch<{ success: boolean; errors?: any }>({\n      bearer,\n      method: \"POST\",\n      path: `/delete_expense/${b.expense_id}`,\n    });\n    if (!result.success) {\n      throw new VendorApiError(422, result.errors ?? null, `Splitwise delete_expense returned success=false: ${JSON.stringify(result.errors ?? {}).slice(0, 240)}`);\n    }\n    return NextResponse.json({ success: true, expense_id: b.expense_id });"
+    }
+  ]
+}

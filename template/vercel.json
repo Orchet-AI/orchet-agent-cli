@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "next build",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "headers": [
+    {
+      "source": "/(.well-known/agent.json|openapi.json|health)",
+      "headers": [
+        { "key": "access-control-allow-origin", "value": "*" },
+        { "key": "access-control-allow-methods", "value": "GET, OPTIONS" }
+      ]
+    }
+  ]
+}
