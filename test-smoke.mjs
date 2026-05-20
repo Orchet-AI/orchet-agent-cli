@@ -152,6 +152,8 @@ const openapiChecks = [
   { needle: '"x-lumo-tool": true', label: "OpenAPI x-lumo-tool marker" },
   { needle: '"x-lumo-cost-tier": "free"', label: "OpenAPI read-only cost tier" },
   { needle: '"x-lumo-requires-confirmation": "structured-booking"', label: "OpenAPI write confirmation" },
+  { needle: "VERCEL_PROJECT_PRODUCTION_URL", label: "OpenAPI Vercel production URL fallback" },
+  { needle: "variables: { base: { default: BASE_URL } }", label: "OpenAPI dynamic base server" },
 ];
 for (const c of openapiChecks) {
   if (openapiSrc.includes(c.needle)) {
