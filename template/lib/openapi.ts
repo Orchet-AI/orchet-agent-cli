@@ -30,10 +30,5 @@ export const openapi = {
       },
     },
   },
-  paths: {},
-  // The per-tool path definitions live in app/tools/<tool>/route.ts.
-  // After generation, regenerate this file or hand-edit to add the
-  // formal OpenAPI path objects. The orchestrator currently treats
-  // each /tools/<name> as a tool by name + reads its request/response
-  // schemas from the Zod validator inside the route handler.
+  paths: {{OPENAPI_PATHS}},
 } as const;

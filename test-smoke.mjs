@@ -113,6 +113,7 @@ const checks = [
   { needle: 'authorize_url: "https://api.lyft.com/oauth/authorize"', label: "manifest authorize_url" },
   { needle: 'client_id_env: "ORCHET_LYFT_CLIENT_ID"', label: "client_id_env shouted" },
   { needle: 'process.env.ORCHET_LYFT_AGENT_BASE_URL', label: "base url env" },
+  { needle: 'on_call_escalation: "mailto:developer@example.com"', label: "mailto escalation URL" },
   { needle: 'requires_payment: true', label: "money flag" },
 ];
 for (const c of checks) {
@@ -140,6 +141,24 @@ if (requestRideSrc.includes('POST /tools/lyft_request_ride')) {
 } else {
   console.error("  ✗ tool route header for lyft_request_ride missing");
   fail += 1;
+}
+
+// OpenAPI must expose generated tools; marketplace review rejects empty paths.
+const openapiSrc = await fs.readFile(path.join(OUT_DIR, "lib/openapi.ts"), "utf8");
+const openapiChecks = [
+  { needle: '"/tools/lyft_get_estimates"', label: "OpenAPI path for estimates" },
+  { needle: '"operationId": "lyft_get_estimates"', label: "OpenAPI operationId for estimates" },
+  { needle: '"x-lumo-tool": true', label: "OpenAPI x-lumo-tool marker" },
+  { needle: '"x-lumo-cost-tier": "free"', label: "OpenAPI read-only cost tier" },
+  { needle: '"x-lumo-requires-confirmation": "structured-booking"', label: "OpenAPI write confirmation" },
+];
+for (const c of openapiChecks) {
+  if (openapiSrc.includes(c.needle)) {
+    pass += 1;
+  } else {
+    console.error(`  ✗ openapi missing: ${c.label} (needle: ${c.needle})`);
+    fail += 1;
+  }
 }
 
 // Verify Uber's vendor name doesn't leak into Lyft-rendered files.
@@ -192,6 +211,16 @@ if (!publicManifestSrc.includes("\n  connect:\n  listing:")) {
   pass += 1;
 } else {
   console.error("  ✗ authModel=none rendered a dangling connect block");
+  fail += 1;
+}
+const publicOpenapiSrc = await fs.readFile(path.join(NONE_OUT_DIR, "lib/openapi.ts"), "utf8");
+if (
+  publicOpenapiSrc.includes('"/tools/public_weather_lookup"') &&
+  publicOpenapiSrc.includes('"x-lumo-tool": true')
+) {
+  pass += 1;
+} else {
+  console.error("  ✗ authModel=none OpenAPI did not expose public_weather_lookup");
   fail += 1;
 }
 

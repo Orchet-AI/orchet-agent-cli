@@ -56,5 +56,5 @@ export const manifest = defineManifest({
     homepage_url: BASE_URL,
     pricing_note: "{{#IF HAS_MONEY_TOOLS}}Pay-per-use to {{DISPLAY_NAME}} directly. No platform fee from Orchet.{{/IF}}{{#IF HAS_MONEY_TOOLS}}{{/IF}}",
   },
-  on_call_escalation: "{{CONTACT_EMAIL}}",
+  on_call_escalation: "{{CONTACT_ESCALATION_URL}}",
 });
