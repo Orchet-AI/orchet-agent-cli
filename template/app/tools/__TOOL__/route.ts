@@ -22,6 +22,7 @@ const Body = z.object({
 }).passthrough();
 
 export async function POST(req: NextRequest) {
+{{#IF HAS_OAUTH}}
   const bearer = extractBearer(req);
   if (!bearer) {
     return NextResponse.json(
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       { status: 401 },
     );
   }
+{{/IF}}
 
   let body: z.infer<typeof Body>;
   try {

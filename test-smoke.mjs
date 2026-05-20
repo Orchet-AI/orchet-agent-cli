@@ -223,6 +223,16 @@ if (
   console.error("  ✗ authModel=none OpenAPI did not expose public_weather_lookup");
   fail += 1;
 }
+const publicToolSrc = await fs.readFile(
+  path.join(NONE_OUT_DIR, "app/tools/public_weather_lookup/route.ts"),
+  "utf8",
+);
+if (!publicToolSrc.includes("missing_bearer")) {
+  pass += 1;
+} else {
+  console.error("  ✗ authModel=none tool still requires a bearer token");
+  fail += 1;
+}
 
 // CLI command smoke: help exits cleanly and validate can inspect a manifest file.
 try {
