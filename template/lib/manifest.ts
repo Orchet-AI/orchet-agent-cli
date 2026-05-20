@@ -36,7 +36,7 @@ export const manifest = defineManifest({
     supports_compound_bookings: {{HAS_MONEY_TOOLS}},
     implements_cancellation: {{HAS_MONEY_TOOLS}},
   },
-{{#IF AUTH_MODEL}}
+{{#IF HAS_OAUTH}}
   connect:
 {{/IF}}
 {{#IF AUTHORIZE_URL}}

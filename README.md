@@ -4,18 +4,18 @@ Scaffold Orchet specialist agents in seconds.
 
 ```bash
 # Interactive — 6 questions, full repo
-npx create-orchet-agent lyft
+npx create-orchet-agent init lyft
 
 # Claude-assisted from vendor's OpenAPI spec
-ANTHROPIC_API_KEY=… npx create-orchet-agent lyft \
+ANTHROPIC_API_KEY=… npx create-orchet-agent init lyft \
   --from-openapi https://api.lyft.com/v1/openapi.yaml
 
 # Claude-assisted from a docs page (HTML)
-ANTHROPIC_API_KEY=… npx create-orchet-agent doordash \
+ANTHROPIC_API_KEY=… npx create-orchet-agent init doordash \
   --from-docs https://developer.doordash.com/en-US/docs/drive
 
 # Non-interactive (CI / design-partner onboarding)
-npx create-orchet-agent stripe --config ./stripe.config.json
+npx create-orchet-agent init stripe --config ./stripe.config.json
 ```
 
 ## What you get
@@ -38,7 +38,7 @@ A complete Next.js repo ready to deploy on Vercel:
     auth.ts                           # bearer extraction
   scripts/validate-manifest.mjs       # local pre-flight
   package.json, tsconfig.json, next.config.mjs, vercel.json
-  .env.example, .gitignore, .npmrc, README.md
+  .env.example, .gitignore, README.md
 ```
 
 ## Three modes, one config shape
@@ -75,6 +75,25 @@ All three modes (interactive, --from-openapi, --from-docs) converge on the same 
 ```
 
 `--config <path>` reads this JSON directly. `--from-openapi` and `--from-docs` ask Claude to produce it. Interactive prompts the user for the top-level fields and leaves you with a stub tool to edit.
+
+## Command reference
+
+```bash
+orchet-agent init weather --config ./weather.config.json
+orchet-agent dev
+orchet-agent validate
+orchet-agent validate --manifest-url https://weather.example.com/.well-known/agent.json
+ORCHET_SIGNING_SECRET=... orchet-agent sign --bundle ./bundle.tgz --out .orchet/signature.json
+ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
+  --manifest-url https://weather.example.com/.well-known/agent.json \
+  --bundle ./bundle.tgz \
+  --signature-file .orchet/signature.json \
+  --contact-email developer@example.com
+ORCHET_DEVELOPER_TOKEN=... orchet-agent status <submission_id>
+```
+
+`ORCHET_API_BASE` defaults to `https://api.orchet.ai`. `submit` also accepts
+`--manifest-file`, `--tools`, `--requested-tier`, and `--api-base`.
 
 ## Hard credential boundary
 

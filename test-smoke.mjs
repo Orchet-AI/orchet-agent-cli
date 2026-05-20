@@ -9,11 +9,15 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { execFile as execFileCb } from "node:child_process";
 import { renderTemplate } from "./lib/render.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.resolve(__dirname, "template");
 const OUT_DIR = path.resolve(__dirname, ".smoke-out", "lyft");
+const NONE_OUT_DIR = path.resolve(__dirname, ".smoke-out", "public-weather");
+const execFile = promisify(execFileCb);
 
 // Clean previous run.
 await fs.rm(path.resolve(__dirname, ".smoke-out"), { recursive: true, force: true });
@@ -155,6 +159,90 @@ for (const f of expected) {
 }
 if (leaks === 0) pass += 1;
 else fail += leaks;
+
+// Auth model "none" must not render a dangling TypeScript `connect:` label.
+await renderTemplate({
+  templateDir: TEMPLATE_DIR,
+  outDir: NONE_OUT_DIR,
+  config: {
+    agentId: "public-weather",
+    displayName: "Public Weather",
+    oneLiner: "Public weather lookup with no user auth.",
+    category: "Weather",
+    authModel: "none",
+    hasMoneyTools: false,
+    vendorApiBase: "https://api.weather.example.com",
+    contactEmail: "developer@example.com",
+    tools: [
+      {
+        name: "public_weather_lookup",
+        summary: "Look up public weather.",
+        method: "POST",
+        path: "/public_weather_lookup",
+        readonly: true,
+      },
+    ],
+  },
+});
+const publicManifestSrc = await fs.readFile(
+  path.join(NONE_OUT_DIR, "lib/manifest.ts"),
+  "utf8",
+);
+if (!publicManifestSrc.includes("\n  connect:\n  listing:")) {
+  pass += 1;
+} else {
+  console.error("  ✗ authModel=none rendered a dangling connect block");
+  fail += 1;
+}
+
+// CLI command smoke: help exits cleanly and validate can inspect a manifest file.
+try {
+  const { stdout } = await execFile(process.execPath, [
+    path.join(__dirname, "bin/create-orchet-agent.mjs"),
+    "--help",
+  ]);
+  if (stdout.includes("orchet-agent validate") && stdout.includes("orchet-agent submit")) {
+    pass += 1;
+  } else {
+    console.error("  ✗ help output missing command reference");
+    fail += 1;
+  }
+} catch (err) {
+  console.error(`  ✗ --help failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
+
+const manifestJsonPath = path.join(__dirname, ".smoke-out", "manifest.json");
+await fs.writeFile(
+  manifestJsonPath,
+  JSON.stringify({
+    agent_id: "public-weather",
+    version: "0.1.0",
+    display_name: "Public Weather",
+    one_liner: "Public weather lookup with no user auth.",
+    intents: ["weather"],
+    openapi_url: "https://public-weather.example.com/openapi.json",
+    health_url: "https://public-weather.example.com/health",
+  }),
+  "utf8",
+);
+try {
+  const { stdout } = await execFile(process.execPath, [
+    path.join(__dirname, "bin/create-orchet-agent.mjs"),
+    "validate",
+    "--manifest-file",
+    manifestJsonPath,
+  ]);
+  if (stdout.includes("manifest shape valid")) {
+    pass += 1;
+  } else {
+    console.error("  ✗ validate command did not report success");
+    fail += 1;
+  }
+} catch (err) {
+  console.error(`  ✗ validate command failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
 
 console.log(`\n${pass} checks passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
