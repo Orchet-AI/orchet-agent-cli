@@ -115,6 +115,7 @@ const checks = [
   { needle: 'process.env.ORCHET_LYFT_AGENT_BASE_URL', label: "base url env" },
   { needle: 'on_call_escalation: "mailto:developer@example.com"', label: "mailto escalation URL" },
   { needle: 'requires_payment: true', label: "money flag" },
+  { needle: 'payment_mode: "agent_owned"', label: "payment mode" },
 ];
 for (const c of checks) {
   if (manifestSrc.includes(c.needle)) {

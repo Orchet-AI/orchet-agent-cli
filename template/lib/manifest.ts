@@ -35,6 +35,7 @@ export const manifest = defineManifest({
     sdk_version: "{{SDK_VERSION}}",
     supports_compound_bookings: {{HAS_MONEY_TOOLS}},
     implements_cancellation: {{HAS_MONEY_TOOLS}},
+    payment_mode: "{{PAYMENT_MODE}}",
   },
 {{#IF HAS_OAUTH}}
   connect:
