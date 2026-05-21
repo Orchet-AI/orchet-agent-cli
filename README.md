@@ -97,13 +97,13 @@ ORCHET_DEVELOPER_TOKEN=... orchet-agent status <submission_id>
 
 ## Hard credential boundary
 
-The generated manifest carries **env-var NAMES**, never values. `client_id_env: "ORCHET_<AGENT>_CLIENT_ID"`. The actual OAuth secrets live on Vercel as production env vars. Per ADR-015, the orchet-marketplace service never accepts secrets in submissions.
+The generated manifest carries **env-var NAMES**, never values. `client_id_env: "ORCHET_<AGENT>_CLIENT_ID"`. The actual OAuth secrets live on Vercel as production env vars. Per ADR-015, the Orchet Store submission service never accepts secrets in submissions.
 
 ## Why this exists
 
 Manually writing one agent like Uber takes 2 hours and 1,200 LoC. At 100 agents that's 200 hours plus 100 vendor OAuth registrations plus QA — multiple engineer-weeks for code that's 80% boilerplate. The CLI takes that 80% to zero. Build the next agent in 15 minutes (interactive) or 5 minutes (--from-openapi with Claude).
 
-The CLI is the thing that lets the marketplace scale — internally for the top 20 official integrations, externally for the long-tail developer ecosystem.
+The CLI is the thing that lets the Orchet Store scale — internally for the top 20 official integrations, externally for the long-tail developer ecosystem.
 
 ## License
 

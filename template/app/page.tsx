@@ -13,7 +13,7 @@ export default function Home() {
         </p>
         <p style={{ marginTop: 16 }}>
           <a href="https://www.orchet.ai/marketplace/{{AGENT_ID}}" style={{ display: "inline-block", background: "#fff", color: "#000", padding: "10px 16px", borderRadius: 8, textDecoration: "none", fontSize: 14, fontWeight: 500 }}>
-            Add to Orchet →
+            Add to Orchet Store →
           </a>
         </p>
         <p style={{ fontSize: 13, opacity: 0.7, lineHeight: 1.6, marginTop: 32 }}>

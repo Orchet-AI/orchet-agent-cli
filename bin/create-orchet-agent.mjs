@@ -91,7 +91,7 @@ async function runInteractive(name) {
       {
         type: "text",
         name: "displayName",
-        message: "Display name (shown in marketplace)",
+        message: "Display name (shown in Orchet Store)",
         initial: name.charAt(0).toUpperCase() + name.slice(1),
       },
       {
@@ -103,7 +103,7 @@ async function runInteractive(name) {
       {
         type: "select",
         name: "category",
-        message: "Marketplace category",
+        message: "Orchet Store category",
         choices: [
           { title: "Travel", value: "Travel" },
           { title: "Food", value: "Food" },
