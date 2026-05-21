@@ -144,14 +144,14 @@ if (requestRideSrc.includes('POST /tools/lyft_request_ride')) {
   fail += 1;
 }
 
-// OpenAPI must expose generated tools; marketplace review rejects empty paths.
+// OpenAPI must expose generated tools; Orchet Store review rejects empty paths.
 const openapiSrc = await fs.readFile(path.join(OUT_DIR, "lib/openapi.ts"), "utf8");
 const openapiChecks = [
   { needle: '"/tools/lyft_get_estimates"', label: "OpenAPI path for estimates" },
   { needle: '"operationId": "lyft_get_estimates"', label: "OpenAPI operationId for estimates" },
-  { needle: '"x-lumo-tool": true', label: "OpenAPI x-lumo-tool marker" },
-  { needle: '"x-lumo-cost-tier": "free"', label: "OpenAPI read-only cost tier" },
-  { needle: '"x-lumo-requires-confirmation": "structured-booking"', label: "OpenAPI write confirmation" },
+  { needle: '"x-orchet-tool": true', label: "OpenAPI x-orchet-tool marker" },
+  { needle: '"x-orchet-cost-tier": "free"', label: "OpenAPI read-only cost tier" },
+  { needle: '"x-orchet-requires-confirmation": "structured-booking"', label: "OpenAPI write confirmation" },
   { needle: "VERCEL_PROJECT_PRODUCTION_URL", label: "OpenAPI Vercel production URL fallback" },
   { needle: "variables: { base: { default: BASE_URL } }", label: "OpenAPI dynamic base server" },
 ];
@@ -219,7 +219,7 @@ if (!publicManifestSrc.includes("\n  connect:\n  listing:")) {
 const publicOpenapiSrc = await fs.readFile(path.join(NONE_OUT_DIR, "lib/openapi.ts"), "utf8");
 if (
   publicOpenapiSrc.includes('"/tools/public_weather_lookup"') &&
-  publicOpenapiSrc.includes('"x-lumo-tool": true')
+  publicOpenapiSrc.includes('"x-orchet-tool": true')
 ) {
   pass += 1;
 } else {
