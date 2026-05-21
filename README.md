@@ -89,11 +89,52 @@ ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
   --bundle ./bundle.tgz \
   --signature-file .orchet/signature.json \
   --contact-email developer@example.com
+ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-mcp \
+  --server-id linear \
+  --display-name Linear \
+  --mcp-url https://mcp.linear.app \
+  --authorize-url https://linear.app/oauth/authorize \
+  --token-url https://api.linear.app/oauth/token \
+  --transport streamable_http \
+  --scopes issues:read,issues:write \
+  --contact-email developer@example.com
+ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-a2a \
+  --agent-card-url https://agent.example.com/.well-known/agent.json \
+  --contact-email developer@example.com
 ORCHET_DEVELOPER_TOKEN=... orchet-agent status <submission_id>
 ```
 
 `ORCHET_API_BASE` defaults to `https://api.orchet.ai`. `submit` also accepts
 `--manifest-file`, `--tools`, `--requested-tier`, and `--api-base`.
+`submit-mcp` and `submit-a2a` accept `--requested-tier`, `--api-base`, and
+`ORCHET_CONTACT_EMAIL`.
+
+### SDK/API submissions
+
+Use `orchet-agent submit` when you host an HTTP agent built with
+`@orchet/agent-sdk`. The payload carries your manifest, bundle bytes, optional
+tool contracts, and signing metadata.
+
+### Remote MCP submissions
+
+Use `orchet-agent submit-mcp` when your app already exposes a remote MCP server.
+The payload maps directly to `POST /marketplace/submissions/mcp`:
+
+- `--server-id`: stable lowercase id for the Orchet Store row.
+- `--display-name`: user-facing name.
+- `--mcp-url`: HTTPS MCP endpoint.
+- `--authorize-url` / `--token-url`: OAuth endpoints.
+- `--transport`: `streamable_http` or `sse`.
+- `--scopes`: comma- or space-separated scope names.
+
+Do not pass OAuth client secrets. Orchet admins provision the OAuth client env
+var names during review.
+
+### A2A submissions
+
+Use `orchet-agent submit-a2a` when your app exposes a Google A2A-compatible
+Agent Card. The payload maps directly to `POST /marketplace/submissions/a2a`
+and only needs the public Agent Card URL plus contact metadata.
 
 ## Hard credential boundary
 

@@ -73,13 +73,17 @@ function usage() {
   orchet-agent validate --manifest-url <url>        # validate deployed manifest shape
   orchet-agent sign --bundle <file> [--out <file>]  # HMAC-sign bundle metadata
   orchet-agent submit --manifest-url <url> --bundle <file> --contact-email <email>
+  orchet-agent submit-mcp --server-id <id> --display-name <name> --mcp-url <url> ...
+  orchet-agent submit-a2a --agent-card-url <url> --contact-email <email>
   orchet-agent status <submission_id>
 
 Examples:
   npx create-orchet-agent init lyft --from-openapi https://api.lyft.com/v1/openapi.yaml
   npx create-orchet-agent init doordash --from-docs https://developer.doordash.com/en-US/docs/drive
   npx create-orchet-agent init stripe --config ./stripe.config.json
-  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit --manifest-url https://agent.example.com/.well-known/agent.json --bundle ./bundle.tgz --contact-email dev@example.com`);
+  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit --manifest-url https://agent.example.com/.well-known/agent.json --bundle ./bundle.tgz --contact-email dev@example.com
+  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-mcp --server-id linear --display-name Linear --mcp-url https://mcp.linear.app --authorize-url https://linear.app/oauth/authorize --token-url https://api.linear.app/oauth/token --transport streamable_http --scopes issues:read,issues:write --contact-email dev@example.com
+  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-a2a --agent-card-url https://agent.example.com/.well-known/agent.json --contact-email dev@example.com`);
 }
 
 // ─── prompt-driven interactive flow ─────────────────────────────────
@@ -309,7 +313,6 @@ async function runSign(flags) {
 }
 
 async function runSubmit(flags) {
-  const token = developerToken();
   const manifest = await loadManifest(flags);
   validateManifestShape(manifest);
   const bundlePath = flags.bundle;
@@ -336,7 +339,54 @@ async function runSubmit(flags) {
     ...(tools ? { tools } : {}),
   };
 
-  const res = await fetch(`${apiBase(flags)}/marketplace/submissions/sdk`, {
+  await postSubmission({
+    flags,
+    path: "/marketplace/submissions/sdk",
+    body,
+    label: "SDK/API agent",
+  });
+}
+
+async function runSubmitMCP(flags) {
+  const body = {
+    server_id: requiredFlag(flags, "server-id", "submit-mcp"),
+    display_name: requiredFlag(flags, "display-name", "submit-mcp"),
+    ...(flags.description ? { description: String(flags.description) } : {}),
+    mcp_url: requiredFlag(flags, "mcp-url", "submit-mcp"),
+    authorize_url: requiredFlag(flags, "authorize-url", "submit-mcp"),
+    token_url: requiredFlag(flags, "token-url", "submit-mcp"),
+    transport: flags.transport ? String(flags.transport) : "streamable_http",
+    scopes: parseListFlag(flags.scopes),
+    contact_email: contactEmail(flags, "submit-mcp"),
+    ...(flags["requested-tier"] ? { requested_tier: String(flags["requested-tier"]) } : {}),
+  };
+
+  await postSubmission({
+    flags,
+    path: "/marketplace/submissions/mcp",
+    body,
+    label: "remote MCP server",
+  });
+}
+
+async function runSubmitA2A(flags) {
+  const body = {
+    agent_card_url: requiredFlag(flags, "agent-card-url", "submit-a2a"),
+    contact_email: contactEmail(flags, "submit-a2a"),
+    ...(flags["requested-tier"] ? { requested_tier: String(flags["requested-tier"]) } : {}),
+  };
+
+  await postSubmission({
+    flags,
+    path: "/marketplace/submissions/a2a",
+    body,
+    label: "A2A peer",
+  });
+}
+
+async function postSubmission({ flags, path, body, label }) {
+  const token = developerToken();
+  const res = await fetch(`${apiBase(flags)}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -348,7 +398,7 @@ async function runSubmit(flags) {
   if (!res.ok) {
     fail(`submit failed (${res.status}): ${JSON.stringify(payload)}`);
   }
-  console.log("✓ submitted");
+  console.log(`✓ submitted ${label}`);
   console.log(JSON.stringify(payload, null, 2));
 }
 
@@ -377,6 +427,28 @@ function developerToken() {
   const token = process.env.ORCHET_DEVELOPER_TOKEN || process.env.ORCHET_API_TOKEN;
   if (!token) fail("set ORCHET_DEVELOPER_TOKEN before calling submit/status");
   return token;
+}
+
+function contactEmail(flags, command) {
+  const value = flags["contact-email"] || process.env.ORCHET_CONTACT_EMAIL;
+  if (!value) fail(`${command} requires --contact-email <email> or ORCHET_CONTACT_EMAIL`);
+  return String(value);
+}
+
+function requiredFlag(flags, name, command) {
+  const value = flags[name];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    fail(`${command} requires --${name} <value>`);
+  }
+  return value.trim();
+}
+
+function parseListFlag(raw) {
+  if (raw === undefined || raw === true) return [];
+  return String(raw)
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function apiBase(flags) {
@@ -445,7 +517,16 @@ function fail(message) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const commands = new Set(["init", "dev", "validate", "sign", "submit", "status"]);
+  const commands = new Set([
+    "init",
+    "dev",
+    "validate",
+    "sign",
+    "submit",
+    "submit-mcp",
+    "submit-a2a",
+    "status",
+  ]);
   const first = args._[0];
 
   if (args.flags.help || args.flags.h) {
@@ -477,6 +558,12 @@ async function main() {
       return;
     case "submit":
       await runSubmit(args.flags);
+      return;
+    case "submit-mcp":
+      await runSubmitMCP(args.flags);
+      return;
+    case "submit-a2a":
+      await runSubmitA2A(args.flags);
       return;
     case "status":
       await runStatus(positional[0], args.flags);

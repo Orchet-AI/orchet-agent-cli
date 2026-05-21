@@ -7,6 +7,7 @@
  * Usage: node test-smoke.mjs
  */
 import { promises as fs } from "node:fs";
+import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -18,6 +19,58 @@ const TEMPLATE_DIR = path.resolve(__dirname, "template");
 const OUT_DIR = path.resolve(__dirname, ".smoke-out", "lyft");
 const NONE_OUT_DIR = path.resolve(__dirname, ".smoke-out", "public-weather");
 const execFile = promisify(execFileCb);
+const CLI_PATH = path.join(__dirname, "bin/create-orchet-agent.mjs");
+
+async function withSubmissionServer(run) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      let body = null;
+      try {
+        body = raw ? JSON.parse(raw) : null;
+      } catch {
+        body = raw;
+      }
+      requests.push({
+        method: req.method,
+        url: req.url,
+        authorization: req.headers.authorization,
+        contentType: req.headers["content-type"],
+        body,
+      });
+      res.writeHead(202, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          submission_id: "sub_smoke_123",
+          state: "pending",
+          agent_type: "smoke",
+          submitted_at: "2026-05-21T00:00:00.000Z",
+          trust_results: [],
+        }),
+      );
+    });
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+
+  const address = server.address();
+  const baseUrl =
+    typeof address === "object" && address
+      ? `http://127.0.0.1:${address.port}`
+      : "";
+
+  try {
+    await run({ baseUrl, requests });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
 
 // Clean previous run.
 await fs.rm(path.resolve(__dirname, ".smoke-out"), { recursive: true, force: true });
@@ -240,10 +293,15 @@ if (!publicToolSrc.includes("missing_bearer")) {
 // CLI command smoke: help exits cleanly and validate can inspect a manifest file.
 try {
   const { stdout } = await execFile(process.execPath, [
-    path.join(__dirname, "bin/create-orchet-agent.mjs"),
+    CLI_PATH,
     "--help",
   ]);
-  if (stdout.includes("orchet-agent validate") && stdout.includes("orchet-agent submit")) {
+  if (
+    stdout.includes("orchet-agent validate") &&
+    stdout.includes("orchet-agent submit") &&
+    stdout.includes("orchet-agent submit-mcp") &&
+    stdout.includes("orchet-agent submit-a2a")
+  ) {
     pass += 1;
   } else {
     console.error("  ✗ help output missing command reference");
@@ -270,7 +328,7 @@ await fs.writeFile(
 );
 try {
   const { stdout } = await execFile(process.execPath, [
-    path.join(__dirname, "bin/create-orchet-agent.mjs"),
+    CLI_PATH,
     "validate",
     "--manifest-file",
     manifestJsonPath,
@@ -283,6 +341,116 @@ try {
   }
 } catch (err) {
   console.error(`  ✗ validate command failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
+
+try {
+  await withSubmissionServer(async ({ baseUrl, requests }) => {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        CLI_PATH,
+        "submit-mcp",
+        "--server-id",
+        "demo-mcp",
+        "--display-name",
+        "Demo MCP",
+        "--description",
+        "Demo remote MCP server",
+        "--mcp-url",
+        "https://mcp.example.com",
+        "--authorize-url",
+        "https://auth.example.com/oauth/authorize",
+        "--token-url",
+        "https://auth.example.com/oauth/token",
+        "--transport",
+        "streamable_http",
+        "--scopes",
+        "projects:read,clients:write",
+        "--contact-email",
+        "developer@example.com",
+        "--requested-tier",
+        "community",
+        "--api-base",
+        baseUrl,
+      ],
+      {
+        env: { ...process.env, ORCHET_DEVELOPER_TOKEN: "smoke-token" },
+      },
+    );
+
+    const req = requests[0];
+    if (
+      stdout.includes("submitted remote MCP server") &&
+      requests.length === 1 &&
+      req.method === "POST" &&
+      req.url === "/marketplace/submissions/mcp" &&
+      req.authorization === "Bearer smoke-token" &&
+      req.body.server_id === "demo-mcp" &&
+      req.body.display_name === "Demo MCP" &&
+      req.body.description === "Demo remote MCP server" &&
+      req.body.mcp_url === "https://mcp.example.com" &&
+      req.body.authorize_url === "https://auth.example.com/oauth/authorize" &&
+      req.body.token_url === "https://auth.example.com/oauth/token" &&
+      req.body.transport === "streamable_http" &&
+      Array.isArray(req.body.scopes) &&
+      req.body.scopes.join(",") === "projects:read,clients:write" &&
+      req.body.contact_email === "developer@example.com" &&
+      req.body.requested_tier === "community"
+    ) {
+      pass += 1;
+    } else {
+      console.error("  ✗ submit-mcp did not send the expected payload");
+      console.error(JSON.stringify({ stdout, requests }, null, 2));
+      fail += 1;
+    }
+  });
+} catch (err) {
+  console.error(`  ✗ submit-mcp command failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
+
+try {
+  await withSubmissionServer(async ({ baseUrl, requests }) => {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        CLI_PATH,
+        "submit-a2a",
+        "--agent-card-url",
+        "https://agents.example.com/.well-known/agent.json",
+        "--contact-email",
+        "developer@example.com",
+        "--requested-tier",
+        "community",
+        "--api-base",
+        baseUrl,
+      ],
+      {
+        env: { ...process.env, ORCHET_DEVELOPER_TOKEN: "smoke-token" },
+      },
+    );
+
+    const req = requests[0];
+    if (
+      stdout.includes("submitted A2A peer") &&
+      requests.length === 1 &&
+      req.method === "POST" &&
+      req.url === "/marketplace/submissions/a2a" &&
+      req.authorization === "Bearer smoke-token" &&
+      req.body.agent_card_url === "https://agents.example.com/.well-known/agent.json" &&
+      req.body.contact_email === "developer@example.com" &&
+      req.body.requested_tier === "community"
+    ) {
+      pass += 1;
+    } else {
+      console.error("  ✗ submit-a2a did not send the expected payload");
+      console.error(JSON.stringify({ stdout, requests }, null, 2));
+      fail += 1;
+    }
+  });
+} catch (err) {
+  console.error(`  ✗ submit-a2a command failed: ${err instanceof Error ? err.message : String(err)}`);
   fail += 1;
 }
 
