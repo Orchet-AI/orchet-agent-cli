@@ -454,5 +454,78 @@ try {
   fail += 1;
 }
 
+try {
+  await withSubmissionServer(async ({ baseUrl, requests }) => {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        CLI_PATH,
+        "status",
+        "sub_smoke_123",
+        "--api-base",
+        baseUrl,
+      ],
+      {
+        env: { ...process.env, ORCHET_DEVELOPER_TOKEN: "dev_test_token" },
+      },
+    );
+
+    const req = requests[0];
+    if (
+      stdout.includes("sub_smoke_123") &&
+      requests.length === 1 &&
+      req.method === "GET" &&
+      req.url === "/marketplace/submissions/sub_smoke_123" &&
+      req.authorization === "Bearer dev_test_token"
+    ) {
+      pass += 1;
+    } else {
+      console.error("  ✗ status did not send the developer bearer token");
+      console.error(JSON.stringify({ stdout, requests }, null, 2));
+      fail += 1;
+    }
+  });
+} catch (err) {
+  console.error(`  ✗ status command failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
+
+try {
+  await withSubmissionServer(async ({ baseUrl }) => {
+    await execFile(
+      process.execPath,
+      [
+        CLI_PATH,
+        "status",
+        "sub_missing_token",
+        "--api-base",
+        baseUrl,
+      ],
+      {
+        env: {
+          ...process.env,
+          ORCHET_DEVELOPER_TOKEN: "",
+          ORCHET_API_TOKEN: "",
+        },
+      },
+    );
+    console.error("  ✗ status without developer token unexpectedly succeeded");
+    fail += 1;
+  });
+} catch (err) {
+  const stderr = typeof err === "object" && err && "stderr" in err ? String(err.stderr) : "";
+  if (
+    stderr.includes("Missing developer token.") &&
+    stderr.includes("Create one at https://www.orchet.ai/developer/keys") &&
+    stderr.includes("export ORCHET_DEVELOPER_TOKEN=orchet_dev_...")
+  ) {
+    pass += 1;
+  } else {
+    console.error("  ✗ missing developer token error was not actionable");
+    console.error(stderr);
+    fail += 1;
+  }
+}
+
 console.log(`\n${pass} checks passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

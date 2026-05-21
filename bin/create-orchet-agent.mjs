@@ -425,7 +425,11 @@ async function loadManifest(flags) {
 
 function developerToken() {
   const token = process.env.ORCHET_DEVELOPER_TOKEN || process.env.ORCHET_API_TOKEN;
-  if (!token) fail("set ORCHET_DEVELOPER_TOKEN before calling submit/status");
+  if (!token) {
+    fail(`Missing developer token.
+Create one at https://www.orchet.ai/developer/keys, then run:
+  export ORCHET_DEVELOPER_TOKEN=orchet_dev_...`);
+  }
   return token;
 }
 

@@ -1,11 +1,11 @@
 {
   "name": "@orchet/agent-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold Orchet specialist agents from a template, or generate from a vendor's OpenAPI spec with Claude assistance.",
   "type": "module",
   "bin": {
-    "create-orchet-agent": "./bin/create-orchet-agent.mjs",
-    "orchet-agent": "./bin/create-orchet-agent.mjs"
+    "create-orchet-agent": "bin/create-orchet-agent.mjs",
+    "orchet-agent": "bin/create-orchet-agent.mjs"
   },
   "files": [
     "bin/",
@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Orchet-AI/orchet-agent-cli.git"
+    "url": "git+https://github.com/Orchet-AI/orchet-agent-cli.git"
   },
   "keywords": [
     "orchet",
