@@ -46,9 +46,21 @@ https://api.orchet.ai/connections/callback
 Once `{{AGENT_ID}}.orchet.ai` is live:
 
 ```bash
+ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
+  --manifest-url https://{{AGENT_ID}}.orchet.ai/.well-known/agent.json \
+  --openapi-url https://{{AGENT_ID}}.orchet.ai/openapi.json \
+  --health-url https://{{AGENT_ID}}.orchet.ai/health \
+  --contact-email you@example.com
+```
+
+Advanced verified releases can attach a signed bundle:
+
+```bash
 ORCHET_SIGNING_SECRET=... orchet-agent sign --bundle ./bundle.tgz --out .orchet/signature.json
 ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
   --manifest-url https://{{AGENT_ID}}.orchet.ai/.well-known/agent.json \
+  --openapi-url https://{{AGENT_ID}}.orchet.ai/openapi.json \
+  --health-url https://{{AGENT_ID}}.orchet.ai/health \
   --bundle ./bundle.tgz \
   --signature-file .orchet/signature.json \
   --contact-email you@example.com

@@ -86,8 +86,8 @@ orchet-agent validate --manifest-url https://weather.example.com/.well-known/age
 ORCHET_SIGNING_SECRET=... orchet-agent sign --bundle ./bundle.tgz --out .orchet/signature.json
 ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
   --manifest-url https://weather.example.com/.well-known/agent.json \
-  --bundle ./bundle.tgz \
-  --signature-file .orchet/signature.json \
+  --openapi-url https://weather.example.com/openapi.json \
+  --health-url https://weather.example.com/health \
   --contact-email developer@example.com
 ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-mcp \
   --server-id linear \
@@ -105,7 +105,9 @@ ORCHET_DEVELOPER_TOKEN=... orchet-agent status <submission_id>
 ```
 
 `ORCHET_API_BASE` defaults to `https://api.orchet.ai`. `submit` also accepts
-`--manifest-file`, `--tools`, `--requested-tier`, and `--api-base`.
+`--bundle`, `--signature-file`, `--manifest-file`, `--tools`, `--requested-tier`,
+and `--api-base`; signed bundles are optional advanced metadata for verified
+releases, not the default hosted path.
 `submit-mcp` and `submit-a2a` accept `--requested-tier`, `--api-base`, and
 `ORCHET_CONTACT_EMAIL`.
 

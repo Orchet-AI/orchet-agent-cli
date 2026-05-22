@@ -460,6 +460,57 @@ try {
       process.execPath,
       [
         CLI_PATH,
+        "submit",
+        "--manifest-url",
+        "https://weather.example.com/.well-known/agent.json",
+        "--openapi-url",
+        "https://weather.example.com/openapi.json",
+        "--health-url",
+        "https://weather.example.com/health",
+        "--contact-email",
+        "developer@example.com",
+        "--requested-tier",
+        "community",
+        "--api-base",
+        baseUrl,
+      ],
+      {
+        env: { ...process.env, ORCHET_DEVELOPER_TOKEN: "smoke-token" },
+      },
+    );
+
+    const req = requests[0];
+    if (
+      stdout.includes("submitted hosted SDK/API agent") &&
+      requests.length === 1 &&
+      req.method === "POST" &&
+      req.url === "/marketplace/submissions/sdk" &&
+      req.authorization === "Bearer smoke-token" &&
+      req.body.manifest_url === "https://weather.example.com/.well-known/agent.json" &&
+      req.body.openapi_url === "https://weather.example.com/openapi.json" &&
+      req.body.health_url === "https://weather.example.com/health" &&
+      req.body.contact_email === "developer@example.com" &&
+      req.body.requested_tier === "community" &&
+      !("bundle_b64" in req.body)
+    ) {
+      pass += 1;
+    } else {
+      console.error("  ✗ hosted SDK/API submit did not send the expected payload");
+      console.error(JSON.stringify({ stdout, requests }, null, 2));
+      fail += 1;
+    }
+  });
+} catch (err) {
+  console.error(`  ✗ hosted SDK/API submit command failed: ${err instanceof Error ? err.message : String(err)}`);
+  fail += 1;
+}
+
+try {
+  await withSubmissionServer(async ({ baseUrl, requests }) => {
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        CLI_PATH,
         "status",
         "sub_smoke_123",
         "--api-base",

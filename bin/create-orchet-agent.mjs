@@ -72,7 +72,7 @@ function usage() {
   orchet-agent validate                            # run local manifest validation
   orchet-agent validate --manifest-url <url>        # validate deployed manifest shape
   orchet-agent sign --bundle <file> [--out <file>]  # HMAC-sign bundle metadata
-  orchet-agent submit --manifest-url <url> --bundle <file> --contact-email <email>
+  orchet-agent submit --manifest-url <url> --openapi-url <url> --health-url <url> --contact-email <email>
   orchet-agent submit-mcp --server-id <id> --display-name <name> --mcp-url <url> ...
   orchet-agent submit-a2a --agent-card-url <url> --contact-email <email>
   orchet-agent status <submission_id>
@@ -81,7 +81,7 @@ Examples:
   npx create-orchet-agent init lyft --from-openapi https://api.lyft.com/v1/openapi.yaml
   npx create-orchet-agent init doordash --from-docs https://developer.doordash.com/en-US/docs/drive
   npx create-orchet-agent init stripe --config ./stripe.config.json
-  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit --manifest-url https://agent.example.com/.well-known/agent.json --bundle ./bundle.tgz --contact-email dev@example.com
+  ORCHET_DEVELOPER_TOKEN=... orchet-agent submit --manifest-url https://agent.example.com/.well-known/agent.json --openapi-url https://agent.example.com/openapi.json --health-url https://agent.example.com/health --contact-email dev@example.com
   ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-mcp --server-id linear --display-name Linear --mcp-url https://mcp.linear.app --authorize-url https://linear.app/oauth/authorize --token-url https://api.linear.app/oauth/token --transport streamable_http --scopes issues:read,issues:write --contact-email dev@example.com
   ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-a2a --agent-card-url https://agent.example.com/.well-known/agent.json --contact-email dev@example.com`);
 }
@@ -101,8 +101,14 @@ async function runInteractive(name) {
       {
         type: "text",
         name: "oneLiner",
-        message: "One-line description",
+        message: "One-line description (8–140 chars, shown on Orchet Store tile)",
         initial: "",
+        validate: (v) => {
+          const s = (v ?? "").trim();
+          if (s.length < 8) return "Needs at least 8 characters — the SDK manifest validator enforces this.";
+          if (s.length > 140) return "Keep it under 140 characters.";
+          return true;
+        },
       },
       {
         type: "select",
@@ -248,8 +254,11 @@ Next steps:
   cd ${agentId}
   cp .env.example .env.local                  # paste OAuth client_id / secret
   npm install
-  orchet-agent validate
-  orchet-agent dev
+  npm run validate                            # uses local @orchet/agent-cli binary
+  npm run dev
+
+Tip: \`orchet-agent\` is only on your PATH if you \`npm install -g @orchet/agent-cli\`.
+Otherwise use the npm-script aliases above (they call ./node_modules/.bin/orchet-agent).
 `);
 }
 
@@ -313,11 +322,24 @@ async function runSign(flags) {
 }
 
 async function runSubmit(flags) {
-  const manifest = await loadManifest(flags);
-  validateManifestShape(manifest);
-  const bundlePath = flags.bundle;
-  if (!bundlePath) fail("submit requires --bundle <file>");
-  const bundle_b64 = (await fs.readFile(bundlePath)).toString("base64");
+  const manifestUrl = flags["manifest-url"] ? String(flags["manifest-url"]) : undefined;
+  let manifest;
+  if (flags["manifest-file"]) {
+    manifest = await loadManifest(flags);
+    validateManifestShape(manifest);
+  } else if (manifestUrl && (!flags["openapi-url"] || !flags["health-url"])) {
+    manifest = await loadManifest(flags);
+    validateManifestShape(manifest);
+  } else if (!manifestUrl) {
+    fail("submit requires --manifest-url <url> or --manifest-file <path>");
+  }
+
+  const openapiUrl = flags["openapi-url"] ? String(flags["openapi-url"]) : manifest?.openapi_url;
+  const healthUrl = flags["health-url"] ? String(flags["health-url"]) : manifest?.health_url;
+  if (!openapiUrl) fail("submit requires --openapi-url <url> or manifest.openapi_url");
+  if (!healthUrl) fail("submit requires --health-url <url> or manifest.health_url");
+
+  const bundle_b64 = flags.bundle ? (await fs.readFile(flags.bundle)).toString("base64") : undefined;
   const contact_email = flags["contact-email"] || process.env.ORCHET_CONTACT_EMAIL;
   if (!contact_email) fail("submit requires --contact-email <email> or ORCHET_CONTACT_EMAIL");
 
@@ -330,8 +352,11 @@ async function runSubmit(flags) {
   }
   const tools = flags.tools ? JSON.parse(await fs.readFile(flags.tools, "utf8")) : undefined;
   const body = {
-    manifest,
-    bundle_b64,
+    ...(manifestUrl ? { manifest_url: manifestUrl } : {}),
+    ...(manifest ? { manifest } : {}),
+    openapi_url: openapiUrl,
+    health_url: healthUrl,
+    ...(bundle_b64 ? { bundle_b64 } : {}),
     contact_email,
     ...(signature ? { signature } : {}),
     ...(signing_key_id ? { signing_key_id } : {}),
@@ -343,7 +368,7 @@ async function runSubmit(flags) {
     flags,
     path: "/marketplace/submissions/sdk",
     body,
-    label: "SDK/API agent",
+    label: bundle_b64 ? "SDK/API agent" : "hosted SDK/API agent",
   });
 }
 
