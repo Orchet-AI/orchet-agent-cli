@@ -1,153 +1,123 @@
 # @orchet/agent-cli
 
-Scaffold Orchet specialist agents in seconds.
+[![npm version](https://img.shields.io/npm/v/@orchet/agent-cli.svg)](https://www.npmjs.com/package/@orchet/agent-cli)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![node](https://img.shields.io/node/v/@orchet/agent-cli.svg)](https://www.npmjs.com/package/@orchet/agent-cli)
+
+**Scaffold Orchet specialist agents in seconds.** Pick a template or generate from a vendor's OpenAPI spec with Claude assistance — the CLI emits a working Next.js + [@orchet/agent-sdk](https://github.com/Orchet-AI/orchet-agent-sdk) project ready to `npm run dev`.
+
+[Orchet](https://orchet.ai) is a conversational AI super-agent. Specialist agents extend Orchet with new capabilities — book a ride, settle an expense, check a portfolio. This CLI generates the project skeleton so you focus on the integration, not the boilerplate.
+
+## Install
+
+No install required — use `npx`:
 
 ```bash
-# Interactive — 6 questions, full repo
-npx create-orchet-agent init lyft
-
-# Claude-assisted from vendor's OpenAPI spec
-ANTHROPIC_API_KEY=… npx create-orchet-agent init lyft \
-  --from-openapi https://api.lyft.com/v1/openapi.yaml
-
-# Claude-assisted from a docs page (HTML)
-ANTHROPIC_API_KEY=… npx create-orchet-agent init doordash \
-  --from-docs https://developer.doordash.com/en-US/docs/drive
-
-# Non-interactive (CI / design-partner onboarding)
-npx create-orchet-agent init stripe --config ./stripe.config.json
+npx @orchet/agent-cli
 ```
 
-## What you get
-
-A complete Next.js repo ready to deploy on Vercel:
-
-```
-<agent>/
-  app/
-    .well-known/agent.json/route.ts   # Orchet manifest
-    openapi.json/route.ts             # OpenAPI 3.1 spec
-    health/route.ts                   # liveness
-    tools/<name>/route.ts             # one per tool
-    page.tsx                          # public landing page
-    layout.tsx
-  lib/
-    manifest.ts                       # defineManifest() call
-    openapi.ts                        # OpenAPI doc
-    vendor-client.ts                  # thin HTTP wrapper
-    auth.ts                           # bearer extraction
-  scripts/validate-manifest.mjs       # local pre-flight
-  package.json, tsconfig.json, next.config.mjs, vercel.json
-  .env.example, .gitignore, README.md
-```
-
-## Three modes, one config shape
-
-All three modes (interactive, --from-openapi, --from-docs) converge on the same JSON config shape:
-
-```jsonc
-{
-  "agentId": "lyft",                          // lowercase, [a-z][a-z0-9-]{2,31}
-  "displayName": "Lyft",
-  "oneLiner": "Get rides via Lyft.",
-  "category": "Travel",
-  "authModel": "oauth2",                       // or "api_key" or "none"
-  "authorizeUrl": "https://api.lyft.com/oauth/authorize",
-  "tokenUrl":     "https://api.lyft.com/oauth/token",
-  "revocationUrl": "",
-  "scopes": ["public", "profile", "rides.read", "rides.request"],
-  "hasMoneyTools": true,
-  "vendorApiBase": "https://api.lyft.com/v1",
-  "contactEmail": "developer@example.com",
-  "tools": [
-    {
-      "name": "lyft_get_estimates",
-      "summary": "Ride cost + ETA estimates.",
-      "method": "POST",
-      "path": "/lyft_get_estimates",
-      "readonly": true,
-      "requestSchema": { /* JSON Schema */ },
-      "responseSchema": { /* JSON Schema */ },
-      "implBody": "/* generated TS code body */"
-    }
-  ]
-}
-```
-
-`--config <path>` reads this JSON directly. `--from-openapi` and `--from-docs` ask Claude to produce it. Interactive prompts the user for the top-level fields and leaves you with a stub tool to edit.
-
-## Command reference
+Or install globally:
 
 ```bash
-orchet-agent init weather --config ./weather.config.json
-orchet-agent dev
-orchet-agent validate
-orchet-agent validate --manifest-url https://weather.example.com/.well-known/agent.json
-ORCHET_SIGNING_SECRET=... orchet-agent sign --bundle ./bundle.tgz --out .orchet/signature.json
-ORCHET_DEVELOPER_TOKEN=... orchet-agent submit \
-  --manifest-url https://weather.example.com/.well-known/agent.json \
-  --openapi-url https://weather.example.com/openapi.json \
-  --health-url https://weather.example.com/health \
-  --contact-email developer@example.com
-ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-mcp \
-  --server-id linear \
-  --display-name Linear \
-  --mcp-url https://mcp.linear.app \
-  --authorize-url https://linear.app/oauth/authorize \
-  --token-url https://api.linear.app/oauth/token \
-  --transport streamable_http \
-  --scopes issues:read,issues:write \
-  --contact-email developer@example.com
-ORCHET_DEVELOPER_TOKEN=... orchet-agent submit-a2a \
-  --agent-card-url https://agent.example.com/.well-known/agent.json \
-  --contact-email developer@example.com
-ORCHET_DEVELOPER_TOKEN=... orchet-agent status <submission_id>
+npm install -g @orchet/agent-cli
+create-orchet-agent
+# or
+orchet-agent
 ```
 
-`ORCHET_API_BASE` defaults to `https://api.orchet.ai`. `submit` also accepts
-`--bundle`, `--signature-file`, `--manifest-file`, `--tools`, `--requested-tier`,
-and `--api-base`; signed bundles are optional advanced metadata for verified
-releases, not the default hosted path.
-`submit-mcp` and `submit-a2a` accept `--requested-tier`, `--api-base`, and
-`ORCHET_CONTACT_EMAIL`.
+## Usage
 
-### SDK/API submissions
+### Interactive scaffold
 
-Use `orchet-agent submit` when you host an HTTP agent built with
-`@orchet/agent-sdk`. The payload carries your manifest, bundle bytes, optional
-tool contracts, and signing metadata.
+```bash
+npx @orchet/agent-cli
+```
 
-### Remote MCP submissions
+Walks you through:
 
-Use `orchet-agent submit-mcp` when your app already exposes a remote MCP server.
-The payload maps directly to `POST /marketplace/submissions/mcp`:
+1. **Agent identity** — `agent_id`, display name, vendor description
+2. **Generation mode**:
+   - **Template** — pick a built-in skeleton (`splitwise`, `lyft`, `stripe`)
+   - **OpenAPI spec** — paste a URL or path; Claude picks the right endpoints, drafts tool descriptions, generates Zod schemas
+3. **OAuth config** — client ID/secret/scopes if your vendor needs auth
+4. **Output directory** — emits a complete project (manifest, OpenAPI, tool routes, health probe, tests)
 
-- `--server-id`: stable lowercase id for the Orchet Store row.
-- `--display-name`: user-facing name.
-- `--mcp-url`: HTTPS MCP endpoint.
-- `--authorize-url` / `--token-url`: OAuth endpoints.
-- `--transport`: `streamable_http` or `sse`.
-- `--scopes`: comma- or space-separated scope names.
+### Generate from OpenAPI spec
 
-Do not pass OAuth client secrets. Orchet admins provision the OAuth client env
-var names during review.
+Point the CLI at any OpenAPI 3.x document and it'll:
 
-### A2A submissions
+- Parse the operations
+- Ask Claude to rank which operations become Orchet tools (vs. internal helpers)
+- Generate tool routes wired to the vendor's API
+- Emit Zod input/output schemas from the OpenAPI components
+- Scaffold the `.well-known/agent.json` manifest
 
-Use `orchet-agent submit-a2a` when your app exposes a Google A2A-compatible
-Agent Card. The payload maps directly to `POST /marketplace/submissions/a2a`
-and only needs the public Agent Card URL plus contact metadata.
+```bash
+ANTHROPIC_API_KEY=sk-... npx @orchet/agent-cli --openapi https://api.example.com/openapi.json
+```
 
-## Hard credential boundary
+### Bring your own config
 
-The generated manifest carries **env-var NAMES**, never values. `client_id_env: "ORCHET_<AGENT>_CLIENT_ID"`. The actual OAuth secrets live on Vercel as production env vars. Per ADR-015, the Orchet Store submission service never accepts secrets in submissions.
+The repo ships pre-canned configs for popular vendors:
 
-## Why this exists
+- [`lyft.config.json`](./lyft.config.json)
+- [`splitwise.config.json`](./splitwise.config.json)
+- [`stripe.config.json`](./stripe.config.json)
 
-Manually writing one agent like Uber takes 2 hours and 1,200 LoC. At 100 agents that's 200 hours plus 100 vendor OAuth registrations plus QA — multiple engineer-weeks for code that's 80% boilerplate. The CLI takes that 80% to zero. Build the next agent in 15 minutes (interactive) or 5 minutes (--from-openapi with Claude).
+Use any as a starting point for your own.
 
-The CLI is the thing that lets the Orchet Store scale — internally for the top 20 official integrations, externally for the long-tail developer ecosystem.
+## What gets generated
+
+```
+my-agent/
+├── app/
+│   ├── .well-known/
+│   │   └── agent.json/route.ts        # manifest the Orchet registry polls
+│   ├── openapi.json/route.ts          # tool surface (OpenAPI 3.1)
+│   ├── health/route.ts                # SDK-compliant liveness probe
+│   └── tools/
+│       └── <each-tool>/route.ts       # one POST handler per tool
+├── lib/
+│   └── vendor-client.ts               # vendor API wrapper — your edit hotspot
+├── .env.example
+├── package.json                        # depends on @orchet/agent-sdk + Next.js
+├── README.md
+└── tsconfig.json
+```
+
+After scaffolding, you typically edit `lib/vendor-client.ts` to plug in real API calls, set env vars in `.env.local`, then `npm run dev`.
+
+## Production examples
+
+Generated by this CLI:
+
+- [orchet-splitwise-agent](https://github.com/Orchet-AI/orchet-splitwise-agent)
+- [orchet-lumo-rentals](https://github.com/Orchet-AI/orchet-lumo-rentals) (manual + template hybrid)
+- [orchet-plaid-investments](https://github.com/Orchet-AI/orchet-plaid-investments)
+
+## Submit to the Orchet marketplace
+
+Once your agent is deployed (Vercel, Render, anywhere with a public URL):
+
+1. Visit [orchet.ai/developer](https://orchet.ai/developer) → SDK tab
+2. Paste your manifest URL: `https://your-agent.example.com/.well-known/agent.json`
+3. Orchet polls, validates, and adds your agent to the Store
+4. Users discover your agent in chat; it gets invoked as a tool
+
+## Development
+
+```bash
+npm install
+npm test    # smoke test against the template
+```
 
 ## License
 
-Apache-2.0.
+Apache-2.0 © Lumo Technologies / Orchet
+
+## Links
+
+- **SDK:** [@orchet/agent-sdk](https://github.com/Orchet-AI/orchet-agent-sdk)
+- **Docs:** [orchet.ai/developer](https://orchet.ai/developer)
+- **Marketplace:** [orchet.ai/store](https://orchet.ai/store)
+- **Issues:** [github.com/Orchet-AI/orchet-agent-cli/issues](https://github.com/Orchet-AI/orchet-agent-cli/issues)
